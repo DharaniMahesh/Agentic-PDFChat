@@ -39,6 +39,8 @@ load_dotenv()
 access_token = os.getenv('HUGGINGFACEHUB_API_TOKEN')
 # print(access_token  + "-----------------------------------------------------------------------------------------")
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+if 'conversation_history' not in st.session_state:
+        st.session_state.conversation_history = []
 
 class DocumentProcessor:
     def __init__(self, cache_dir: str = "cache"):
@@ -317,7 +319,7 @@ class AutoGenAgents:
         # Step 4: Perform web search for references
             web_references = []
             try:
-                st.write("Initiating web search using phi's DuckDuckGo tool...")
+                st.write("Initiating web search using Agent...")
 
                 # Create an agent with DuckDuckGo as a tool
                 agent_role = """
@@ -401,12 +403,11 @@ class EnhancedQASystem(QASystem):
             self.query_count += 1
 
             # Add web references to the display
-            display_response = f"""
-            {result['response']}
+            display_response = result['response']
             
-            Relevant Web References:
-            """
             if result['web_references']:
+                display_response += "\n"
+                display_response += "\n Relevant Web References:"
                 for idx, url in enumerate(result['web_references'], 1):
                     display_response += f"\n{idx}. {url}"
             else:
@@ -698,14 +699,55 @@ async def main():
         }
     ]
 
-    #st.set_page_config(page_title="Advanced PDF QA System with AutoGen", layout="wide")
-
     # Initialize components
     doc_processor = DocumentProcessor()
     qa_system = EnhancedQASystem(config_list)
 
-     # Initialize qa_system conversation history from session state
+    # Initialize qa_system conversation history from session state
     qa_system.conversation_history = st.session_state.conversation_history
+
+    # Custom CSS for response highlighting with improved text visibility and input alignment
+    st.markdown("""
+        <style>
+        .response-container {
+            background-color: #f0f7ff;
+            border-left: 5px solid #0066cc;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .response-header {
+            color: #0066cc;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        /* Fix text color in response */
+        .response-container div {
+            color: #000000 !important;
+        }
+        /* Style for input container */
+        .stForm > div[data-testid="column"] {
+            padding-top: 30px !important;
+            padding-bottom: 0 !important;
+        }
+        /* Remove default Streamlit form padding */
+        .stForm {
+            padding-top: 10px !important;
+        }
+        /* Align input field */
+        .stTextInput {
+            margin-top: 2px !important;
+            margin-bottom: -10px !important;
+        }
+        /* Align button with input */
+        .stButton {
+            margin-top: 100px !important;
+            padding-top: 0 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Sidebar for uploading and settings
     with st.sidebar:
@@ -718,11 +760,6 @@ async def main():
             help="Select the type of analysis you want to perform on the documents"
         )
 
-        # if st.button("Clear Conversation History"):
-        #     st.session_state.conversation_history = []
-        #     qa_system.conversation_history = []
-        #     st.experimental_rerun()
-
         st.subheader("Agent Settings")
         show_agent_conversation = st.checkbox(
             "Show Agent Conversations",
@@ -733,7 +770,7 @@ async def main():
         if st.button("Clear Conversation History"):
             qa_system.conversation_history = []
             st.session_state.clear()
-            st.experimental_rerun()
+            st.rerun()
 
     # Main content area
     st.title("Advanced PDF Question-Answering System with AutoGen")
@@ -748,28 +785,42 @@ async def main():
             if vectorstore is None:
                 text_splitter = CharacterTextSplitter(
                     separator="\n",
-                    chunk_size=500,  # Reduced from 1000
-                    chunk_overlap=100,  # Reduced from 200
+                    chunk_size=500,
+                    chunk_overlap=100,
                     length_function=len
                 )
                 chunks = text_splitter.split_text(text)
 
                 with st.spinner("Creating embeddings... This might take a while."):
-                    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-base")
                     vectorstore = FAISS.from_texts(
                         texts=chunks,
-                        embedding=embeddings  # Pass the embeddings instance directly
+                        embedding=embeddings
                     )
                     doc_processor.cache_embeddings(doc_hash, vectorstore)
 
-        # Create main content columns
-        #col1, col2 = st.columns([2, 1])
-
-        
         st.header("Ask Questions")
-        user_query = st.text_input("Enter your question:")
+        
+        # Create a form for the question input with improved alignment
+        with st.form(key='question_form'):
+            # Create two columns for input and button
+            col1, col2 = st.columns([6, 1])
+            
+            with col1:
+                user_query = st.text_input(
+                    "Enter your question:",
+                    key="question_input",
+                    placeholder="Type your question here...",
+                    label_visibility="collapsed"  # Hide label to improve alignment
+                )
+            
+            with col2:
+                submit_button = st.form_submit_button(
+                    "Ask",
+                    use_container_width=True
+                )
 
-        if user_query:
+        # Process the query when form is submitted
+        if submit_button and user_query:
             docs = vectorstore.similarity_search(user_query)
 
             with st.spinner("Processing your question..."):
@@ -791,16 +842,33 @@ async def main():
                 st.session_state.conversation_history.append(new_conversation)
                 qa_system.conversation_history = st.session_state.conversation_history
 
-                # Display response
+                # Display response with enhanced styling
                 st.markdown("### Answer")
-                st.write(result['response'])
+                st.markdown(f"""
+                    <div class="response-container">
+                        <div style="color: #000000;">{result['response']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
 
-                # Display metrics
-                metrics_cols = st.columns(4)
-                metrics_cols[0].metric("Processing Time", f"{processing_time:.2f}s")
-                metrics_cols[1].metric("Tokens Used", f"{result['tokens_used']:,}")
-                metrics_cols[2].metric("Total Queries", len(st.session_state.conversation_history))
-                metrics_cols[3].metric("Agents Used", len(result['agents_involved']))
+                # Create container for metrics
+                with st.container():
+                    st.markdown("""
+                        <style>
+                        .metric-container {
+                            padding: 15px;
+                            border-radius: 5px;
+                            margin-top: 20px;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+                    metrics_cols = st.columns(4)
+                    metrics_cols[0].metric("⏱️ Processing Time", f"{processing_time:.2f}s")
+                    metrics_cols[1].metric("🔤 Tokens Used", f"{result['tokens_used']:,}")
+                    metrics_cols[2].metric("💬 Total Queries", len(st.session_state.conversation_history))
+                    metrics_cols[3].metric("🤖 Agents Used", len(result['agents_involved']))
+                    st.markdown('</div>', unsafe_allow_html=True)
 
                 # Show agent conversations if enabled
                 if show_agent_conversation:
@@ -809,17 +877,7 @@ async def main():
                         with st.chat_message(msg['role']):
                             st.write(msg['content'])
 
-                # Update conversation history
-                # qa_system.conversation_history.append({
-                #     'question': user_query,
-                #     'response': result['response'],
-                #     'analysis_type': analysis_type,
-                #     'agents_involved': result['agents_involved'],
-                #     'tokens_used': result['tokens_used'],
-                #     'timestamp': datetime.now()
-                # })
-
-        
+        # Analytics section
         st.header("Analytics")
         if st.session_state.conversation_history:
             df = Analytics.get_usage_stats(st.session_state.conversation_history)
@@ -827,7 +885,6 @@ async def main():
         else:
             st.info("Start asking questions to see analytics!")
 
-        # Display conversation history
         # Display conversation history
         if st.session_state.conversation_history:
             st.markdown("---")
@@ -838,8 +895,12 @@ async def main():
                     st.markdown("**Question:**")
                     st.write(conv['question'])
                     
-                    st.markdown("**Response:**")
-                    st.write(conv['response'])
+                    # Enhanced styling for response in history
+                    st.markdown("""
+                        <div style="background-color: #f0f7ff; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                            <strong>Response:</strong><br>
+                            <div style="white-space: pre-wrap; color: #000000;">
+                    """ + conv['response'] + "</div></div>", unsafe_allow_html=True)
                     
                     cols = st.columns(4)
                     with cols[0]:
@@ -857,11 +918,7 @@ async def main():
                     with cols[3]:
                         st.markdown("**Time:**")
                         st.text(conv['timestamp'].strftime("%Y-%m-%d %H:%M:%S"))
-# token_usage = response.response_metadata["token_usage"]
-# input_tokens = token_usage["prompt_tokens"]
-# output_tokens = token_usage["completion_tokens"]
 
 if __name__ == "__main__":
     import asyncio
-
     asyncio.run(main())
