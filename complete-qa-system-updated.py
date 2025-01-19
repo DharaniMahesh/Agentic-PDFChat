@@ -108,7 +108,6 @@ class QASystem:
         self.conversation_history = []
 
     def get_groq_response(self, prompt: str) -> str:
-        """Get response from Groq API"""
         try:
             chat_completion = self.groq_client.chat.completions.create(
                 messages=[
@@ -139,11 +138,9 @@ class GroqWrapper:
         self.client = Groq(api_key=api_key)
 
     def __deepcopy__(self, memo):
-        """Implement deepcopy method"""
         return GroqWrapper(self.api_key)
 
     def create(self, messages, model="Llama3-70b-8192", temperature=0.3, max_tokens=512):
-        """Create a chat completion"""
         try:
             completion = self.client.chat.completions.create(
                 messages=messages,
@@ -171,25 +168,11 @@ class AutoGenAgents:
             "api_type": "groq"
         }]
 
-        # Web surfer configuration for fact checker
-        web_surfer_config = {
-            "timeout": 600,
-            "cache_seed": None,
-            "config_list": self.config_list,
-            "temperature": 0,
-        }
-
-        # Browser configuration for web search
-        browser_config = {
-            "viewport_size": 4096,
-            "bing_api_key": os.getenv("BING_API_KEY", "default_key")
-        }
 
         code_execution_config = {
             "work_dir": "coding",
-            "use_docker": False  # Explicitly disable Docker
+            "use_docker": False 
         }
-        # Primary assistant for general queries
         self.user_proxy = autogen.UserProxyAgent(
             name="user_proxy",
             system_message="Coordinate between different agents to get comprehensive answers.",
@@ -225,7 +208,6 @@ class AutoGenAgents:
         )
 
     async def process_query(self, query: str, context: str, analysis_type: str) -> Dict:
-        """Process a query using multiple agents and return the result."""
 
         async def get_groq_response(messages):
             """Helper function to get refined response from Groq."""
@@ -241,10 +223,8 @@ class AutoGenAgents:
                 st.error(f"Error in Groq API call: {str(e)}")
                 return "Error processing request."
 
-        # Initialize chat history for tracking conversation
         chat_history = []
 
-        # Prepare the system context message
         context_message = {
             "role": "system",
             "content": f"""TASK: {analysis_type.upper()} QUERY
@@ -449,12 +429,10 @@ class Analytics:
         if df.empty:
             return None, None, None, None
 
-        # Color scheme
-        bar_color = '#1f77b4'  # Blue
-        line_color = '#2ca02c'  # Green
-        grid_color = 'rgba(211, 211, 211, 0.5)'  # Light gray with transparency
+        bar_color = '#1f77b4'  
+        line_color = '#2ca02c'  
+        grid_color = 'rgba(211, 211, 211, 0.5)'  
         
-        # Questions per day
         daily_questions = (df.groupby(df['timestamp'].dt.date)
                         .size()
                         .reset_index(name='count'))
@@ -469,7 +447,6 @@ class Analytics:
                         "<b>Questions</b>: %{y}<extra></extra>"
         )
 
-        # Token usage over time
         fig2 = px.line(df,
                     x='timestamp',
                     y='tokens_used',
@@ -480,7 +457,6 @@ class Analytics:
                         "<b>Tokens</b>: %{y}<extra></extra>"
         )
 
-        # Analysis type distribution
         analysis_counts = df['analysis_type'].value_counts().reset_index()
         analysis_counts.columns = ['analysis_type', 'count']
         fig3 = px.pie(analysis_counts,
@@ -495,7 +471,6 @@ class Analytics:
                         "<b>Percentage</b>: %{percent}<extra></extra>"
         )
 
-        # Agent involvement
         agent_list = []
         for agents in df['agents_involved']:
             agent_list.extend(agents)
@@ -514,11 +489,10 @@ class Analytics:
                         "<b>Queries</b>: %{y}<extra></extra>"
         )
 
-        # Enhanced layout settings for all charts
         layout_updates = dict(
             plot_bgcolor='rgba(255, 255, 255, 0.9)',
             paper_bgcolor='white',
-            margin=dict(t=50, l=50, r=50, b=50),  # Increased margins for axis labels
+            margin=dict(t=50, l=50, r=50, b=50), 
             showlegend=True,
             font=dict(
                 family="Arial, sans-serif",
@@ -535,7 +509,6 @@ class Analytics:
         for fig in [fig1, fig2, fig3, fig4]:
             fig.update_layout(**layout_updates)
             
-            # Update axes for better readability (except for pie chart)
             if fig != fig3:
                 fig.update_xaxes(
                     showgrid=True,
@@ -553,7 +526,7 @@ class Analytics:
                         size=14,
                         color='black'
                     ),
-                    title_standoff=25  # Add space between axis and title
+                    title_standoff=25 
                 )
                 fig.update_yaxes(
                     showgrid=True,
@@ -570,10 +543,9 @@ class Analytics:
                         size=14,
                         color='black'
                     ),
-                    title_standoff=25  # Add space between axis and title
+                    title_standoff=25  
                 )
                 
-                # Add value labels on bars/points
                 if isinstance(fig.data[0], go.Bar):
                     fig.update_traces(
                         textposition='outside',
@@ -594,7 +566,6 @@ class Analytics:
                         )
                     )
 
-                # Ensure ticks and tick labels are visible
                 fig.update_xaxes(
                     ticks="outside",
                     tickwidth=2,
@@ -612,25 +583,22 @@ class Analytics:
 
     @staticmethod
     def display_analytics(df: pd.DataFrame, container):
-        """Display analytics in the given Streamlit container"""
         if df.empty:
             container.info("No data available for analytics yet.")
             return
 
         fig1, fig2, fig3, fig4 = Analytics.create_usage_charts(df)
         
-        if all([fig1, fig2, fig3, fig4]):  # Check if all figures were created
+        if all([fig1, fig2, fig3, fig4]):  
             container.plotly_chart(fig1, use_container_width=True)
             container.plotly_chart(fig2, use_container_width=True)
             
-            # Create two columns for the pie chart and bar chart
             col1, col2 = container.columns(2)
             with col1:
                 container.plotly_chart(fig3, use_container_width=True)
             with col2:
                 container.plotly_chart(fig4, use_container_width=True)
             
-            # Display summary statistics
             container.subheader("Summary Statistics")
             stats = {
                 "Total Questions": len(df),
@@ -642,7 +610,6 @@ class Analytics:
                 ]))
             }
             
-            # Display stats in a nice format
             stat_cols = container.columns(3)
             for i, (key, value) in enumerate(stats.items()):
                 stat_cols[i % 3].metric(
@@ -687,7 +654,6 @@ async def main():
         st.error("Please set your GROQ_API_KEY in the .env file")
         return
 
-    # Initialize session state for conversation history
     if 'conversation_history' not in st.session_state:
         st.session_state.conversation_history = []
 
@@ -699,14 +665,11 @@ async def main():
         }
     ]
 
-    # Initialize components
     doc_processor = DocumentProcessor()
     qa_system = EnhancedQASystem(config_list)
 
-    # Initialize qa_system conversation history from session state
     qa_system.conversation_history = st.session_state.conversation_history
 
-    # Custom CSS for response highlighting with improved text visibility and input alignment
     st.markdown("""
         <style>
         .response-container {
@@ -749,7 +712,6 @@ async def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # Sidebar for uploading and settings
     with st.sidebar:
         st.header("Settings & Upload")
         pdfs = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
@@ -772,7 +734,6 @@ async def main():
             st.session_state.clear()
             st.rerun()
 
-    # Main content area
     st.title("Advanced PDF Question-Answering System with AutoGen")
 
     if pdfs:
@@ -802,7 +763,6 @@ async def main():
         
         # Create a form for the question input with improved alignment
         with st.form(key='question_form'):
-            # Create two columns for input and button
             col1, col2 = st.columns([6, 1])
             
             with col1:
@@ -828,7 +788,6 @@ async def main():
                 result = await qa_system.process_query(user_query, docs, analysis_type)
                 processing_time = (datetime.now() - start_time).total_seconds()
 
-                # Create new conversation entry
                 new_conversation = {
                     'question': user_query,
                     'response': result['response'],
@@ -838,11 +797,9 @@ async def main():
                     'timestamp': datetime.now()
                 }
 
-                # Update both qa_system and session state conversation history
                 st.session_state.conversation_history.append(new_conversation)
                 qa_system.conversation_history = st.session_state.conversation_history
 
-                # Display response with enhanced styling
                 st.markdown("### Answer")
                 st.markdown(f"""
                     <div class="response-container">
@@ -870,14 +827,13 @@ async def main():
                     metrics_cols[3].metric("🤖 Agents Used", len(result['agents_involved']))
                     st.markdown('</div>', unsafe_allow_html=True)
 
-                # Show agent conversations if enabled
                 if show_agent_conversation:
                     st.markdown("### Agent Conversations")
                     for msg in result['chat_history']:
                         with st.chat_message(msg['role']):
                             st.write(msg['content'])
 
-        # Analytics section
+        
         st.header("Analytics")
         if st.session_state.conversation_history:
             df = Analytics.get_usage_stats(st.session_state.conversation_history)
@@ -885,7 +841,6 @@ async def main():
         else:
             st.info("Start asking questions to see analytics!")
 
-        # Display conversation history
         if st.session_state.conversation_history:
             st.markdown("---")
             st.header("Conversation History")
@@ -895,7 +850,6 @@ async def main():
                     st.markdown("**Question:**")
                     st.write(conv['question'])
                     
-                    # Enhanced styling for response in history
                     st.markdown("""
                         <div style="background-color: #f0f7ff; padding: 15px; border-radius: 5px; margin: 10px 0;">
                             <strong>Response:</strong><br>
