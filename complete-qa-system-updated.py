@@ -448,54 +448,164 @@ class Analytics:
         if df.empty:
             return None, None, None, None
 
-        # Questions per day - Convert to regular DataFrame
+        # Color scheme
+        bar_color = '#1f77b4'  # Blue
+        line_color = '#2ca02c'  # Green
+        grid_color = 'rgba(211, 211, 211, 0.5)'  # Light gray with transparency
+        
+        # Questions per day
         daily_questions = (df.groupby(df['timestamp'].dt.date)
-                         .size()
-                         .reset_index(name='count'))
+                        .size()
+                        .reset_index(name='count'))
         fig1 = px.bar(daily_questions,
-                     x='timestamp',
-                     y='count',
-                     title='Questions Per Day',
-                     labels={'count': 'Number of Questions', 'timestamp': 'Date'})
+                    x='timestamp',
+                    y='count',
+                    title='Questions Per Day',
+                    labels={'count': 'Number of Questions', 'timestamp': 'Date'})
+        fig1.update_traces(
+            marker_color=bar_color,
+            hovertemplate="<b>Date</b>: %{x}<br>" +
+                        "<b>Questions</b>: %{y}<extra></extra>"
+        )
 
         # Token usage over time
         fig2 = px.line(df,
-                      x='timestamp',
-                      y='tokens_used',
-                      title='Token Usage Over Time')
+                    x='timestamp',
+                    y='tokens_used',
+                    title='Token Usage Over Time')
+        fig2.update_traces(
+            line_color=line_color,
+            hovertemplate="<b>Time</b>: %{x}<br>" +
+                        "<b>Tokens</b>: %{y}<extra></extra>"
+        )
 
         # Analysis type distribution
         analysis_counts = df['analysis_type'].value_counts().reset_index()
         analysis_counts.columns = ['analysis_type', 'count']
         fig3 = px.pie(analysis_counts,
-                     values='count',
-                     names='analysis_type',
-                     title='Analysis Type Distribution')
+                    values='count',
+                    names='analysis_type',
+                    title='Analysis Type Distribution')
+        fig3.update_traces(
+            textposition='inside',
+            textinfo='percent+label',
+            hovertemplate="<b>Type</b>: %{label}<br>" +
+                        "<b>Count</b>: %{value}<br>" +
+                        "<b>Percentage</b>: %{percent}<extra></extra>"
+        )
 
-        # Agent involvement - Flatten the nested list and count
+        # Agent involvement
         agent_list = []
         for agents in df['agents_involved']:
             agent_list.extend(agents)
         agent_counts = (pd.Series(agent_list)
-                       .value_counts()
-                       .reset_index())
+                    .value_counts()
+                    .reset_index())
         agent_counts.columns = ['agent', 'count']
         fig4 = px.bar(agent_counts,
-                     x='agent',
-                     y='count',
-                     title='Agent Participation',
-                     labels={'count': 'Number of Queries', 'agent': 'Agent'})
+                    x='agent',
+                    y='count',
+                    title='Agent Participation',
+                    labels={'count': 'Number of Queries', 'agent': 'Agent'})
+        fig4.update_traces(
+            marker_color=bar_color,
+            hovertemplate="<b>Agent</b>: %{x}<br>" +
+                        "<b>Queries</b>: %{y}<extra></extra>"
+        )
 
-        # Update layout for better visualization
-        for fig in [fig1, fig2, fig3, fig4]:
-            fig.update_layout(
-                plot_bgcolor='white',
-                paper_bgcolor='white',
-                margin=dict(t=40, l=20, r=20, b=20),
-                showlegend=True
+        # Enhanced layout settings for all charts
+        layout_updates = dict(
+            plot_bgcolor='rgba(255, 255, 255, 0.9)',
+            paper_bgcolor='white',
+            margin=dict(t=50, l=50, r=50, b=50),  # Increased margins for axis labels
+            showlegend=True,
+            font=dict(
+                family="Arial, sans-serif",
+                size=12,
+                color="black"
+            ),
+            title=dict(
+                font=dict(size=16, color='black'),
+                x=0.5,
+                xanchor='center'
             )
-            fig.update_xaxes(gridcolor='lightgray')
-            fig.update_yaxes(gridcolor='lightgray')
+        )
+
+        for fig in [fig1, fig2, fig3, fig4]:
+            fig.update_layout(**layout_updates)
+            
+            # Update axes for better readability (except for pie chart)
+            if fig != fig3:
+                fig.update_xaxes(
+                    showgrid=True,
+                    gridcolor=grid_color,
+                    gridwidth=1,
+                    tickangle=45,
+                    showline=True,
+                    linewidth=1,
+                    linecolor='black',
+                    tickfont=dict(
+                        size=14,
+                        color='black'
+                    ),
+                    title_font=dict(
+                        size=14,
+                        color='black'
+                    ),
+                    title_standoff=25  # Add space between axis and title
+                )
+                fig.update_yaxes(
+                    showgrid=True,
+                    gridcolor=grid_color,
+                    gridwidth=1,
+                    showline=True,
+                    linewidth=1,
+                    linecolor='black',
+                    tickfont=dict(
+                        size=14,
+                        color='black'
+                    ),
+                    title_font=dict(
+                        size=14,
+                        color='black'
+                    ),
+                    title_standoff=25  # Add space between axis and title
+                )
+                
+                # Add value labels on bars/points
+                if isinstance(fig.data[0], go.Bar):
+                    fig.update_traces(
+                        textposition='outside',
+                        texttemplate='%{y}',
+                        textfont=dict(
+                            size=12,
+                            color='black'
+                        )
+                    )
+                elif isinstance(fig.data[0], go.Scatter):
+                    fig.update_traces(
+                        mode='lines+markers+text',
+                        textposition='top center',
+                        texttemplate='%{y}',
+                        textfont=dict(
+                            size=12,
+                            color='black'
+                        )
+                    )
+
+                # Ensure ticks and tick labels are visible
+                fig.update_xaxes(
+                    ticks="outside",
+                    tickwidth=2,
+                    tickcolor='black',
+                    ticklen=10
+                )
+                fig.update_yaxes(
+                    ticks="outside",
+                    tickwidth=2,
+                    tickcolor='black',
+                    ticklen=10
+                )
 
         return fig1, fig2, fig3, fig4
 
